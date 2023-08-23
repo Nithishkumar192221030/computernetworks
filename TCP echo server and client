@@ -1,0 +1,58 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+#define PORT 12345
+#define BUFFER_SIZE 1024
+
+int main() {
+    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket == -1) {
+        perror("Socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+    struct sockaddr_in serverAddr;
+    memset(&serverAddr, 0, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_port = htons(PORT);
+    if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == -1) {
+        perror("Binding failed");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+    if (listen(serverSocket, 5) == -1) {
+        perror("Listening failed");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Server listening on port %d...\n", PORT);
+
+    while (1) {
+        // Accept incoming connection
+        struct sockaddr_in clientAddr;
+        socklen_t clientAddrLen = sizeof(clientAddr);
+        int clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientAddrLen);
+        if (clientSocket == -1) {
+            perror("Acceptance failed");
+            close(serverSocket);
+            exit(EXIT_FAILURE);
+        }
+        char buffer[BUFFER_SIZE];
+        ssize_t bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (bytesRead == -1) {
+            perror("Receiving data failed");
+            close(clientSocket);
+            continue;
+        }
+
+        send(clientSocket, buffer, bytesRead, 0);
+        close(clientSocket);
+    }
+    close(serverSocket);
+
+    return 0;
+}
