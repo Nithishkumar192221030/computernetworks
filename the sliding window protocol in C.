@@ -1,0 +1,45 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <unistd.h>
+
+#define WINDOW_SIZE 1
+#define TIMEOUT 2 // Simulated timeout in seconds
+
+typedef struct {
+    int sequenceNumber;
+    char data;
+} Frame;
+
+void sendFrame(Frame frame) {
+    printf("Sender: Sending frame with sequence number %d and data %c\n", frame.sequenceNumber, frame.data);
+}
+
+int main() {
+    Frame frames[] = {
+        {0, 'A'},
+        {1, 'B'},
+        {2, 'C'},
+        {3, 'D'},
+        {4, 'E'}
+    };
+
+    int totalFrames = sizeof(frames) / sizeof(Frame);
+
+    for (int i = 0; i < totalFrames; i++) {
+        Frame currentFrame = frames[i];
+        sendFrame(currentFrame);
+
+        sleep(TIMEOUT); // Simulating timeout
+
+        printf("Sender: Waiting for acknowledgment...\n");
+
+        // Simulate successful acknowledgment (ack)
+        printf("Sender: Frame with sequence number %d acknowledged.\n", currentFrame.sequenceNumber);
+    }
+
+    printf("All frames sent and acknowledged. Sender exiting.\n");
+
+    return 0;
+}
