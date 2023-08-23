@@ -1,0 +1,61 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+#define SERVER_PORT 5353
+
+typedef struct {
+    char domain[256];
+    char ip[16];
+} DNS_Record;
+
+DNS_Record dns_records[] = {
+    {"www.example.com", "192.168.1.100"},
+    {"mail.example.com", "192.168.1.101"}
+};
+
+int main() {
+    int serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (serverSocket == -1) {
+        perror("Socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    struct sockaddr_in serverAddr;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(SERVER_PORT);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
+        perror("Binding failed");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    printf("DNS Server is listening...\n");
+
+    while (1) {
+        struct sockaddr_in clientAddr;
+        socklen_t clientAddrLen = sizeof(clientAddr);
+        char query[256];
+        recvfrom(serverSocket, query, sizeof(query), 0, (struct sockaddr *)&clientAddr, &clientAddrLen);
+        
+        printf("Received query: %s\n", query);
+
+        char response[16] = "Not found";
+
+        for (int i = 0; i < sizeof(dns_records) / sizeof(DNS_Record); i++) {
+            if (strcmp(query, dns_records[i].domain) == 0) {
+                strcpy(response, dns_records[i].ip);
+                break;
+            }
+        }
+
+        sendto(serverSocket, response, sizeof(response), 0, (struct sockaddr *)&clientAddr, clientAddrLen);
+    }
+
+    close(serverSocket);
+    return 0;
+}
