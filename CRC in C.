@@ -1,0 +1,41 @@
+#include <stdio.h>
+#include <string.h>
+
+#define CRC_POLYNOMIAL 0x04C11DB7 
+
+unsigned int crc32(const unsigned char *data, size_t length) {
+    unsigned int crc = 0xFFFFFFFF;
+
+    for (size_t i = 0; i < length; i++) {
+        crc ^= (unsigned int)data[i] << 24;
+        for (int j = 0; j < 8; j++) {
+            crc = (crc << 1) ^ ((crc & 0x80000000) ? CRC_POLYNOMIAL : 0);
+        }
+    }
+
+    return crc;
+}
+
+int main() {
+    unsigned char message[] = "Hello, CRC!";
+    size_t messageLength = strlen((char *)message);
+
+    // Calculate CRC
+    unsigned int crc = crc32(message, messageLength);
+
+    printf("Message: %s\n", message);
+    printf("CRC: 0x%X\n", crc);
+
+    // Introduce an error (simulate a bit flip)
+    message[5] ^= 0x01; // Modify a bit in the message
+
+    // Verify the CRC
+    unsigned int recalculatedCRC = crc32(message, messageLength);
+    if (recalculatedCRC == crc) {
+        printf("CRC check passed. No errors detected.\n");
+    } else {
+        printf("CRC check failed. Errors detected.\n");
+    }
+
+    return 0;
+}
