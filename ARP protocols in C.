@@ -1,0 +1,72 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <netinet/if_ether.h>
+
+#define TARGET_IP "192.168.1.1"  
+#define LOCAL_IP "192.168.1.2"   
+#define INTERFACE "eth0"         
+
+void getLocalMacAddress(char *interface, unsigned char *mac) {
+    struct ifreq ifr;
+    int socketFd = socket(AF_INET, SOCK_DGRAM, 0);
+    strcpy(ifr.ifr_name, interface);
+    ioctl(socketFd, SIOCGIFHWADDR, &ifr);
+    memcpy(mac, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
+    close(socketFd);
+}
+
+int main() {
+    int socketFd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
+    if (socketFd == -1) {
+        perror("Socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    unsigned char localMac[ETH_ALEN];
+    getLocalMacAddress(INTERFACE, localMac);
+
+    struct ether_arp arpRequest;
+    memset(&arpRequest, 0, sizeof(struct ether_arp));
+    arpRequest.arp_hrd = htons(ARPHRD_ETHER);
+    arpRequest.arp_pro = htons(ETH_P_IP);
+    arpRequest.arp_hln = ETH_ALEN;
+    arpRequest.arp_pln = 4;
+    arpRequest.arp_op = htons(ARPOP_REQUEST);
+
+    sscanf(LOCAL_IP, "%hhu.%hhu.%hhu.%hhu",
+           &arpRequest.arp_spa[0],
+           &arpRequest.arp_spa[1],
+           &arpRequest.arp_spa[2],
+           &arpRequest.arp_spa[3]);
+
+    for (int i = 0; i < ETH_ALEN; i++) {
+        arpRequest.arp_sha[i] = localMac[i];
+    }
+
+    struct sockaddr_ll socketAddress;
+    memset(&socketAddress, 0, sizeof(socketAddress));
+    socketAddress.sll_family = AF_PACKET;
+    socketAddress.sll_protocol = htons(ETH_P_ARP);
+    socketAddress.sll_ifindex = if_nametoindex(INTERFACE);
+    socketAddress.sll_halen = ETH_ALEN;
+    memcpy(socketAddress.sll_addr, localMac, ETH_ALEN);
+
+    memcpy(&arpRequest.arp_tha, "\x00\x00\x00\x00\x00\x00", ETH_ALEN);
+    inet_pton(AF_INET, TARGET_IP, &arpRequest.arp_tpa);
+
+    ssize_t bytesSent = sendto(socketFd, &arpRequest, sizeof(arpRequest), 0,
+                               (struct sockaddr *)&socketAddress, sizeof(socketAddress));
+    if (bytesSent == -1) {
+        perror("Sending ARP request failed");
+    } else {
+        printf("ARP request sent successfully\n");
+    }
+
+    close(socketFd);
+
+    return 0;
+}
