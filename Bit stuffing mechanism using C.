@@ -1,0 +1,73 @@
+#include <stdio.h>
+
+#define FLAG 0x7E
+#define ESCAPE 0x7D
+#define XOR_MASK 0x20
+
+void bitStuffing(unsigned char *input, int inputSize, unsigned char *output, int *outputSize) {
+    int stuffedIndex = 0;
+
+    output[stuffedIndex++] = FLAG;  // Start delimiter
+
+    for (int i = 0; i < inputSize; i++) {
+        if (input[i] == FLAG || input[i] == ESCAPE) {
+            output[stuffedIndex++] = ESCAPE;
+            output[stuffedIndex++] = input[i] ^ XOR_MASK;
+        } else {
+            output[stuffedIndex++] = input[i];
+        }
+    }
+
+    output[stuffedIndex++] = FLAG;  // End delimiter
+
+    *outputSize = stuffedIndex;
+}
+
+void bitUnstuffing(unsigned char *input, int inputSize, unsigned char *output, int *outputSize) {
+    int unstuffedIndex = 0;
+    int escaped = 0;
+
+    for (int i = 0; i < inputSize; i++) {
+        if (input[i] == ESCAPE) {
+            escaped = 1;
+        } else {
+            if (escaped) {
+                output[unstuffedIndex++] = input[i] ^ XOR_MASK;
+                escaped = 0;
+            } else {
+                output[unstuffedIndex++] = input[i];
+            }
+        }
+    }
+
+    *outputSize = unstuffedIndex;
+}
+
+int main() {
+    unsigned char input[] = {0x7E, 0x45, 0x7D, 0x5E};
+    int inputSize = sizeof(input) / sizeof(input[0]);
+
+    unsigned char stuffed[2 * inputSize];
+    int stuffedSize;
+
+    bitStuffing(input, inputSize, stuffed, &stuffedSize);
+
+    printf("Stuffed data: ");
+    for (int i = 0; i < stuffedSize; i++) {
+        printf("%02X ", stuffed[i]);
+    }
+    printf("\n");
+
+    unsigned char unstuffed[inputSize];
+    int unstuffedSize;
+
+    bitUnstuffing(stuffed, stuffedSize, unstuffed, &unstuffedSize);
+
+    printf("Unstuffed data: ");
+    for (int i = 0; i < unstuffedSize; i++) {
+        printf("%02X ", unstuffed[i]);
+    }
+    printf("\n");
+
+    return 0;
+}
