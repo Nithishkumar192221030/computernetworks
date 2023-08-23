@@ -1,0 +1,86 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+#define PORT 12345
+#define MAX_CLIENTS 10
+#define BUFFER_SIZE 1024
+
+int main() {
+    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket == -1) {
+        perror("Socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    struct sockaddr_in serverAddr, clientAddr;
+    memset(&serverAddr, 0, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_port = htons(PORT);
+
+    if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == -1) {
+        perror("Binding failed");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(serverSocket, MAX_CLIENTS) == -1) {
+        perror("Listening failed");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Chat Server is running...\n");
+
+    fd_set activeFdSet, readFdSet;
+    FD_ZERO(&activeFdSet);
+    FD_SET(serverSocket, &activeFdSet);
+
+    while (1) {
+        readFdSet = activeFdSet;
+        if (select(FD_SETSIZE, &readFdSet, NULL, NULL, NULL) < 0) {
+            perror("Select failed");
+            close(serverSocket);
+            exit(EXIT_FAILURE);
+        }
+
+        for (int fd = 0; fd < FD_SETSIZE; fd++) {
+            if (FD_ISSET(fd, &readFdSet)) {
+                if (fd == serverSocket) {
+                    socklen_t clientAddrLen = sizeof(clientAddr);
+                    int clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientAddrLen);
+                    if (clientSocket == -1) {
+                        perror("Acceptance failed");
+                        close(serverSocket);
+                        exit(EXIT_FAILURE);
+                    }
+                    printf("New client connected: %d\n", clientSocket);
+                    FD_SET(clientSocket, &activeFdSet);
+                } else {
+                    char buffer[BUFFER_SIZE];
+                    ssize_t bytesRead = recv(fd, buffer, sizeof(buffer), 0);
+                    if (bytesRead <= 0) {
+                        printf("Client %d disconnected\n", fd);
+                        close(fd);
+                        FD_CLR(fd, &activeFdSet);
+                    } else {
+                        buffer[bytesRead] = '\0';
+                        printf("Received from client %d: %s", fd, buffer);
+                        for (int otherFd = 0; otherFd < FD_SETSIZE; otherFd++) {
+                            if (otherFd != serverSocket && FD_ISSET(otherFd, &activeFdSet) && otherFd != fd) {
+                                send(otherFd, buffer, bytesRead, 0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    close(serverSocket);
+
+    return 0;
+}
